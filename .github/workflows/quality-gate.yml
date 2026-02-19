@@ -32,7 +32,6 @@ jobs:
             DB_USER: postgres
             DB_PASS: postgres
             DB_NAME: movies
-            DB_SSL: "false"
 
         steps:
             - name: Checkout
@@ -58,27 +57,26 @@ jobs:
 
             - name: Coverage (threshold gate)
               run: npm run test:cov
-            - name: Debug coverage files
-              run: |
-                  echo "---- coverage folders ----"
-                  ls -la
-                  ls -la src || true
-                  ls -la coverage || true
-                  ls -la src/coverage || true
-                  echo "---- lcov locations ----"
-                  find . -name lcov.info -maxdepth 4 || true
 
             #- name: SonarCloud Scan
-            #uses: SonarSource/sonarcloud-github-action@v2
-            #env:
-            #SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+            #  uses: SonarSource/sonarcloud-github-action@v2
+            #  env:
+            #    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
             - name: E2E / Contract tests
               run: npm run test:e2e
 
+            - name: Seed DB for smoke test
+              run: |
+                  PGPASSWORD=postgres psql -h localhost -U postgres -d movies \
+                    -c "INSERT INTO movies (title) VALUES ('Coco'), ('Toy Story') ON CONFLICT DO NOTHING;"
+
             - name: Start server in background
               run: |
                   npm run start &
-                  sleep 5
-            - name: Curl test
-              run: curl http://localhost:3000/api/movies
+                  sleep 6
+
+            - name: Smoke test (curl)
+              run: |
+                  curl -sf http://localhost:3000/api/movies | grep -q "Coco"
+                  echo "✅ API returned expected data"
